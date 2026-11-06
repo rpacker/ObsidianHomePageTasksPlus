@@ -1,0 +1,27 @@
+{
+  "name": "home-page-tasks-plus",
+  "version": "1.0.0",
+  "description": "A task-focused home page for Obsidian.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "typecheck": "tsc -noEmit -skipLibCheck",
+    "test": "node tests/run.mjs",
+    "test:vault": "node tests/run.mjs vault-scan.ts"
+  },
+  "keywords": [
+    "obsidian",
+    "tasks",
+    "dashboard"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "builtin-modules": "^4.0.0",
+    "esbuild": "^0.24.2",
+    "obsidian": "^1.7.2",
+    "typescript": "^5.7.2"
+  }
+}

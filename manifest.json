@@ -1,0 +1,9 @@
+{
+  "id": "home-page-tasks-plus",
+  "name": "Home Page Tasks Plus",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "A task-focused home page for your vault: tasks by date, a priority board, active tickets, recent daily notes and stats — plus AI-summarised daily notes.",
+  "author": "Robert",
+  "isDesktopOnly": true
+}
