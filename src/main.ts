@@ -17,6 +17,7 @@ import {
 import { ClaudeService } from "./claude";
 import { DailyNotesService } from "./dailyNotes";
 import { todayISO } from "./dates";
+import { renameGroupFolder } from "./groups";
 import { buildHomeData, type HomeData } from "./homeData";
 import { AddTaskModal } from "./modals/addTask";
 import { TextPromptModal } from "./modals/textPrompt";
@@ -121,6 +122,11 @@ export default class HomePagePlugin extends Plugin {
 	/** Rescan and redraw every open home page. */
 	refreshViews(): void {
 		for (const view of this.views()) void view.refresh();
+	}
+
+	/** Redraw every open home page from the data it already holds. */
+	redrawViews(): void {
+		for (const view of this.views()) view.redraw();
 	}
 
 	/** Gather the snapshot both the view and the summary are built from. */
@@ -416,6 +422,21 @@ export default class HomePagePlugin extends Plugin {
 					file instanceof TFile &&
 					(relevant(file.path) || relevant(oldPath))
 				) {
+					this.scheduleRefresh();
+				}
+
+				// A renamed top-level folder keeps its place in its task group.
+				if (
+					file instanceof TFolder &&
+					!oldPath.includes("/") &&
+					!file.path.includes("/") &&
+					renameGroupFolder(
+						this.settings.taskGroups,
+						oldPath,
+						file.path,
+					)
+				) {
+					void this.saveSettings();
 					this.scheduleRefresh();
 				}
 			}),

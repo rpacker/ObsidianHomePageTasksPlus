@@ -103,3 +103,34 @@ export interface DailyNote {
 
 /** Buckets used by the "tasks by date" section. */
 export type DateBucket = "overdue" | "today" | "tomorrow" | "upcoming" | "someday";
+
+/**
+ * A user-defined group of top-level folders.
+ * The task sections are split into one block per group.
+ */
+export interface TaskGroupConfig {
+	/** Stable id (`g1`…`g3`), so renaming a group keeps its place and UI state. */
+	id: string;
+	/** Display name; may be empty while it is being typed. */
+	name: string;
+	/** Top-level folder names. `/` stands for notes sitting in the vault root. */
+	folders: string[];
+}
+
+/** Sort orders offered inside the "tasks by date" buckets. */
+export type TaskSort =
+	| "date-asc"
+	| "date-desc"
+	| "priority-high"
+	| "priority-low"
+	| "name-asc"
+	| "name-desc";
+
+export const TASK_SORTS: TaskSort[] = [
+	"date-asc",
+	"date-desc",
+	"priority-high",
+	"priority-low",
+	"name-asc",
+	"name-desc",
+];

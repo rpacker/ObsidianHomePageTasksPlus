@@ -9,9 +9,11 @@
 import { Menu, Notice, setIcon } from "obsidian";
 import { addDays, fullLabel, relativeLabel, todayISO } from "../dates";
 import { displayText, PRIORITY_EMOJI, PRIORITY_LABEL } from "../taskFormat";
+import { groupIdForPath } from "../groups";
 import { effectiveDate } from "../homeData";
 import { PRIORITY_ORDER, type Priority, type Task } from "../types";
 import type { SectionContext } from "../sections/context";
+import { groupDragType } from "./taskGroup";
 
 export interface TaskItemOptions {
 	/** Show which file the task came from. */
@@ -54,6 +56,14 @@ export function renderTaskItem(
 		row.addEventListener("dragstart", (ev) => {
 			row.addClass("hptp-dragging");
 			ev.dataTransfer?.setData("text/hptp-task", task.id);
+			// Drop targets can read a drag's types but not its data until
+			// the drop, so the task's group travels as a type of its own.
+			ev.dataTransfer?.setData(
+				groupDragType(
+					groupIdForPath(ctx.settings.taskGroups, task.path),
+				),
+				"1",
+			);
 			ev.dataTransfer?.setData("text/plain", task.description);
 			if (ev.dataTransfer) ev.dataTransfer.effectAllowed = "move";
 		});

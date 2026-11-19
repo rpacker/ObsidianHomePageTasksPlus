@@ -21,7 +21,9 @@ const stub = path.join(here, "obsidian-stub.js");
 const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "hptp-tests-"));
 
 const suites = process.argv.slice(2);
-if (suites.length === 0) suites.push("format.test.ts", "data.test.ts");
+if (suites.length === 0) {
+	suites.push("format.test.ts", "data.test.ts", "groups.test.ts");
+}
 
 let failed = 0;
 

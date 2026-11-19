@@ -12,7 +12,15 @@ import {
 	startOfWeek,
 	todayISO,
 } from "./dates";
-import type { DateBucket, Priority, Task, Ticket, DailyNote } from "./types";
+import { groupTasks, type TaskGroup } from "./groups";
+import type {
+	DateBucket,
+	Priority,
+	Task,
+	TaskSort,
+	Ticket,
+	DailyNote,
+} from "./types";
 import { PRIORITY_ORDER } from "./types";
 import type { HomePageSettings } from "./settings";
 
@@ -35,6 +43,14 @@ export interface HomeData {
 	buckets: Record<DateBucket, Task[]>;
 	/** Open tasks grouped by priority. */
 	byPriority: Record<Priority, Task[]>;
+	/**
+	 * The blocks the task sections are split into: one per configured group,
+	 * plus "Other" for unassigned folders. A single block when `grouped` is
+	 * false.
+	 */
+	groups: TaskGroup[];
+	/** True when the user has defined groups, so blocks get a header. */
+	grouped: boolean;
 	tickets: Ticket[];
 	dailyNotes: DailyNote[];
 	stats: Stats;
@@ -87,6 +103,98 @@ export function compareByDate(a: Task, b: Task): number {
 	return compareTasks(a, b);
 }
 
+type Comparator = (a: Task, b: Task) => number;
+
+/** Completed tasks sink, so showing them never buries live work. */
+const closedLast: Comparator = (a, b) =>
+	(isClosed(a) ? 1 : 0) - (isClosed(b) ? 1 : 0);
+
+/** Earliest date first; undated tasks last. */
+const dateAscending: Comparator = (a, b) => {
+	const da = effectiveDate(a);
+	const db = effectiveDate(b);
+	if (da && db && da !== db) return da.localeCompare(db);
+	if (da && !db) return -1;
+	if (!da && db) return 1;
+	return 0;
+};
+
+/** Latest date first; undated tasks still last, since they are not "late". */
+const dateDescending: Comparator = (a, b) => {
+	const da = effectiveDate(a);
+	const db = effectiveDate(b);
+	if (da && db && da !== db) return db.localeCompare(da);
+	if (da && !db) return -1;
+	if (!da && db) return 1;
+	return 0;
+};
+
+const priorityHighFirst: Comparator = (a, b) =>
+	PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority);
+
+const nameAscending: Comparator = (a, b) =>
+	a.description.localeCompare(b.description);
+
+const reversed =
+	(compare: Comparator): Comparator =>
+	(a, b) =>
+		compare(b, a);
+
+/** Apply comparators in turn until one separates the pair. */
+function chain(...comparators: Comparator[]): Comparator {
+	return (a, b) => {
+		for (const compare of comparators) {
+			const result = compare(a, b);
+			if (result !== 0) return result;
+		}
+		return 0;
+	};
+}
+
+/**
+ * The comparator for a sort order chosen on the home page.
+ *
+ * Whatever the order, closed tasks sink below live work, and ties fall back
+ * to the remaining keys so the order is stable from one redraw to the next.
+ */
+export function taskComparator(sort: TaskSort): Comparator {
+	switch (sort) {
+		case "date-desc":
+			return chain(
+				closedLast,
+				dateDescending,
+				priorityHighFirst,
+				nameAscending,
+			);
+		case "priority-high":
+			return compareTasks;
+		case "priority-low":
+			return chain(
+				closedLast,
+				reversed(priorityHighFirst),
+				dateAscending,
+				nameAscending,
+			);
+		case "name-asc":
+			return chain(
+				closedLast,
+				nameAscending,
+				dateAscending,
+				priorityHighFirst,
+			);
+		case "name-desc":
+			return chain(
+				closedLast,
+				reversed(nameAscending),
+				dateAscending,
+				priorityHighFirst,
+			);
+		case "date-asc":
+		default:
+			return compareByDate;
+	}
+}
+
 const EMPTY_BUCKETS = (): Record<DateBucket, Task[]> => ({
 	overdue: [],
 	today: [],
@@ -104,6 +212,53 @@ const EMPTY_PRIORITIES = (): Record<Priority, Task[]> => ({
 	lowest: [],
 });
 
+/** Sort tasks into the date buckets, each ordered by `sort`. */
+export function bucketByDate(
+	tasks: Task[],
+	options: {
+		showCompleted: boolean;
+		upcomingDays: number;
+		today: string;
+		sort?: TaskSort;
+	},
+): Record<DateBucket, Task[]> {
+	const buckets = EMPTY_BUCKETS();
+
+	for (const task of tasks) {
+		if (!options.showCompleted && isClosed(task)) continue;
+		const bucket = bucketFor(
+			effectiveDate(task),
+			options.upcomingDays,
+			options.today,
+		);
+		buckets[bucket].push(task);
+	}
+
+	const compare = taskComparator(options.sort ?? "date-asc");
+	for (const key of Object.keys(buckets) as DateBucket[]) {
+		buckets[key].sort(compare);
+	}
+	return buckets;
+}
+
+/** Sort tasks into the priority lanes, each ordered by date. */
+export function bucketByPriority(
+	tasks: Task[],
+	options: { showCompleted: boolean },
+): Record<Priority, Task[]> {
+	const byPriority = EMPTY_PRIORITIES();
+
+	for (const task of tasks) {
+		if (!options.showCompleted && isClosed(task)) continue;
+		byPriority[task.priority].push(task);
+	}
+
+	for (const key of Object.keys(byPriority) as Priority[]) {
+		byPriority[key].sort(compareByDate);
+	}
+	return byPriority;
+}
+
 /** Build the snapshot. */
 export function buildHomeData(
 	tasks: Task[],
@@ -112,32 +267,22 @@ export function buildHomeData(
 	settings: HomePageSettings,
 	today = todayISO(),
 ): HomeData {
-	const buckets = EMPTY_BUCKETS();
-	const byPriority = EMPTY_PRIORITIES();
+	const showCompleted = !settings.hideCompleted;
 
-	for (const task of tasks) {
-		if (settings.hideCompleted && isClosed(task)) continue;
-		const bucket = bucketFor(
-			effectiveDate(task),
-			settings.upcomingDays,
-			today,
-		);
-		buckets[bucket].push(task);
-		byPriority[task.priority].push(task);
-	}
-
-	for (const key of Object.keys(buckets) as DateBucket[]) {
-		buckets[key].sort(compareByDate);
-	}
-	for (const key of Object.keys(byPriority) as Priority[]) {
-		byPriority[key].sort(compareByDate);
-	}
+	const buckets = bucketByDate(tasks, {
+		showCompleted,
+		upcomingDays: settings.upcomingDays,
+		today,
+	});
+	const byPriority = bucketByPriority(tasks, { showCompleted });
 
 	return {
 		today,
 		tasks,
 		buckets,
 		byPriority,
+		groups: groupTasks(tasks, settings.taskGroups),
+		grouped: settings.taskGroups.length > 0,
 		tickets: sortTickets(tickets),
 		dailyNotes,
 		stats: buildStats(tasks, settings, today),

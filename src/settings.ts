@@ -5,9 +5,24 @@ import {
 	Notice,
 	PluginSettingTab,
 	Setting,
+	TFolder,
 	normalizePath,
+	type DropdownComponent,
 } from "obsidian";
+import {
+	MAX_TASK_GROUPS,
+	ROOT_FOLDER,
+	assignFolder,
+	createTaskGroup,
+	folderDisplayName,
+	groupDisplayName,
+	groupIdForFolder,
+	sanitiseTaskGroups,
+	topLevelFolder,
+} from "./groups";
+import { isClosed } from "./homeData";
 import type HomePagePlugin from "./main";
+import { TASK_SORTS, type TaskGroupConfig, type TaskSort } from "./types";
 
 /** Identifiers for the toggleable/reorderable home page sections. */
 export type SectionId =
@@ -70,10 +85,19 @@ export interface HomePageSettings {
 
 	/** Section order and visibility. */
 	sections: SectionConfig[];
+	/**
+	 * Up to three groups of top-level folders. The task sections show one
+	 * block per group; empty means no grouping.
+	 */
+	taskGroups: TaskGroupConfig[];
 	/** Days ahead that count as "upcoming". */
 	upcomingDays: number;
-	/** Hide completed tasks from the date and board sections. */
+	/** Hide completed tasks from the priority board and the daily summary. */
 	hideCompleted: boolean;
+	/** Sort order inside the date buckets. Changed from the card itself. */
+	byDateSort: TaskSort;
+	/** Show closed tasks in "Tasks by date". Toggled from the card itself. */
+	byDateShowCompleted: boolean;
 	/** Max tasks rendered per group before a "show more" control. */
 	maxPerGroup: number;
 	/** Open the home page when Obsidian starts. */
@@ -118,8 +142,11 @@ export const DEFAULT_SETTINGS: HomePageSettings = {
 		{ id: "dailyNotes", enabled: true },
 		{ id: "stats", enabled: true },
 	],
+	taskGroups: [],
 	upcomingDays: 7,
 	hideCompleted: true,
+	byDateSort: "date-asc",
+	byDateShowCompleted: false,
 	maxPerGroup: 25,
 	openOnStartup: false,
 	addCreatedDate: false,
@@ -173,6 +200,17 @@ export function mergeSettings(stored: unknown): HomePageSettings {
 	merged.ticketExcludeFolders = Array.isArray(data.ticketExcludeFolders)
 		? data.ticketExcludeFolders
 		: [...DEFAULT_SETTINGS.ticketExcludeFolders];
+
+	merged.taskGroups = sanitiseTaskGroups(data.taskGroups);
+	merged.byDateSort = TASK_SORTS.includes(data.byDateSort as TaskSort)
+		? (data.byDateSort as TaskSort)
+		: DEFAULT_SETTINGS.byDateSort;
+	// Before the card had its own switch, "Hide completed tasks" governed the
+	// date section too. Carry that choice over rather than resetting it.
+	merged.byDateShowCompleted =
+		typeof data.byDateShowCompleted === "boolean"
+			? data.byDateShowCompleted
+			: !merged.hideCompleted;
 	return merged;
 }
 
@@ -189,6 +227,7 @@ export class HomePageSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		this.renderSections(containerEl);
+		this.renderGroups(containerEl);
 		this.renderTasks(containerEl);
 		this.renderTickets(containerEl);
 		this.renderDailyNotes(containerEl);
@@ -247,6 +286,176 @@ export class HomePageSettingTab extends PluginSettingTab {
 				}),
 			);
 		});
+	}
+
+	/**
+	 * Task groups: name up to three groups, then pick a group for each
+	 * top-level folder.
+	 */
+	private renderGroups(root: HTMLElement): void {
+		new Setting(root).setName("Task groups").setHeading();
+		root.createEl("p", {
+			cls: "hptp-settings-hint",
+			text: `Split "Tasks by date" and the "Priority board" into up to ${MAX_TASK_GROUPS} groups, by the top-level folder each task's note lives in. A folder belongs to one group at most. Tasks in folders left without a group are collected under "Other", so nothing goes missing.`,
+		});
+
+		const groups = this.plugin.settings.taskGroups;
+
+		// Kept so that renaming a group or moving a folder can update the
+		// rest of this block in place, without a redraw stealing the focus.
+		const dropdowns: DropdownComponent[] = [];
+		const groupRows: Setting[] = [];
+
+		const describeGroups = () => {
+			groups.forEach((group, index) => {
+				groupRows[index]?.setDesc(
+					group.folders.length > 0
+						? group.folders.map(folderDisplayName).join(", ")
+						: "No folders yet — choose some below.",
+				);
+			});
+		};
+
+		groups.forEach((group, index) => {
+			const row = new Setting(root)
+				.setName(`Group ${index + 1}`)
+				.addText((t) =>
+					t
+						.setPlaceholder("Name, e.g. Work")
+						.setValue(group.name)
+						.onChange(async (v) => {
+							group.name = v.trim();
+							const label = groupDisplayName(group, index);
+							for (const dropdown of dropdowns) {
+								const option = Array.from(
+									dropdown.selectEl.options,
+								).find((o) => o.value === group.id);
+								if (option) option.textContent = label;
+							}
+							await this.save();
+						}),
+				)
+				.addExtraButton((b) =>
+					b
+						.setIcon("trash-2")
+						.setTooltip("Remove this group")
+						.onClick(async () => {
+							groups.splice(index, 1);
+							await this.save();
+							this.display();
+						}),
+				);
+			groupRows.push(row);
+		});
+		describeGroups();
+
+		const full = groups.length >= MAX_TASK_GROUPS;
+		new Setting(root)
+			.setName("Add a group")
+			.setDesc(
+				full
+					? `All ${MAX_TASK_GROUPS} groups are in use.`
+					: groups.length === 0
+						? "With no groups, the task sections show one combined list."
+						: `${groups.length} of ${MAX_TASK_GROUPS} groups in use.`,
+			)
+			.addButton((b) =>
+				b
+					.setButtonText("Add group")
+					.setDisabled(full)
+					.onClick(async () => {
+						const created = createTaskGroup(groups);
+						if (!created) return;
+						groups.push(created);
+						await this.save();
+						this.display();
+					}),
+			);
+
+		if (groups.length === 0) return;
+
+		new Setting(root)
+			.setName("Folders")
+			.setDesc("Choose a group for each top-level folder in the vault.");
+
+		const list = root.createDiv({ cls: "hptp-folder-list" });
+		const folderRows = new Map<string, Setting>();
+
+		for (const { folder, missing } of this.groupableFolders()) {
+			const row = new Setting(list).setName(folderDisplayName(folder));
+			if (missing) row.setDesc("No longer in the vault.");
+			else if (folder === ROOT_FOLDER) {
+				row.setDesc("Notes that are not inside any folder.");
+			}
+
+			row.addDropdown((d) => {
+				d.addOption("", "No group");
+				groups.forEach((group, index) => {
+					d.addOption(group.id, groupDisplayName(group, index));
+				});
+				d.setValue(groupIdForFolder(groups, folder) ?? "");
+				d.onChange(async (v) => {
+					assignFolder(groups, folder, v || null);
+					describeGroups();
+					await this.save();
+				});
+				dropdowns.push(d);
+			});
+
+			if (!missing) folderRows.set(folder, row);
+		}
+
+		void this.describeFolderRows(folderRows);
+	}
+
+	/**
+	 * Every folder a group can claim: the vault's top-level folders, the
+	 * vault root, and any folder still assigned that has since gone away
+	 * (listed so it can be unassigned).
+	 */
+	private groupableFolders(): { folder: string; missing: boolean }[] {
+		const present = this.app.vault
+			.getRoot()
+			.children.filter((child): child is TFolder => child instanceof TFolder)
+			.map((child) => child.name)
+			.sort((a, b) => a.localeCompare(b));
+
+		const known = new Set([...present, ROOT_FOLDER]);
+		const stale = this.plugin.settings.taskGroups
+			.flatMap((group) => group.folders)
+			.filter((folder) => !known.has(folder));
+
+		return [
+			...present.map((folder) => ({ folder, missing: false })),
+			{ folder: ROOT_FOLDER, missing: false },
+			...stale.map((folder) => ({ folder, missing: true })),
+		];
+	}
+
+	/** Note each folder's open task count, so empty ones are easy to skip. */
+	private async describeFolderRows(rows: Map<string, Setting>): Promise<void> {
+		const tasks = await this.plugin.tasks.all().catch(() => null);
+		if (!tasks) return;
+
+		const open = new Map<string, number>();
+		for (const task of tasks) {
+			if (isClosed(task)) continue;
+			const folder = topLevelFolder(task.path);
+			open.set(folder, (open.get(folder) ?? 0) + 1);
+		}
+
+		for (const [folder, row] of rows) {
+			const count = open.get(folder) ?? 0;
+			const text =
+				count === 0
+					? "No open tasks"
+					: `${count} open task${count === 1 ? "" : "s"}`;
+			row.setDesc(
+				folder === ROOT_FOLDER
+					? `Notes that are not inside any folder · ${text}`
+					: text,
+			);
+		}
 	}
 
 	private renderTasks(root: HTMLElement): void {
@@ -338,9 +547,9 @@ export class HomePageSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(root)
-			.setName("Hide completed tasks")
+			.setName("Hide completed tasks on the board")
 			.setDesc(
-				"Keep done and cancelled tasks out of the date groups and the board.",
+				"Keep done and cancelled tasks out of the priority board and the daily summary. \"Tasks by date\" has its own Show completed switch on the card.",
 			)
 			.addToggle((t) =>
 				t

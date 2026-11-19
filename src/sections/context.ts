@@ -16,6 +16,11 @@ export interface SectionContext {
 	refresh(): void;
 	/** Redraw from the data already in hand. */
 	redraw(): void;
+	/**
+	 * Change settings from the page itself, save them, and redraw every open
+	 * home page. For display options that need no rescan.
+	 */
+	updateSettings(patch: Partial<HomePageSettings>): void;
 
 	/** Open a file, optionally scrolling to a line. */
 	openPath(path: string, line?: number, newLeaf?: boolean): Promise<void>;

@@ -389,6 +389,160 @@
 	color: var(--text-normal);
 }
 
+/* -------------------------------------------------------------- toolbar */
+
+.hptp-toolbar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px 12px;
+	margin-bottom: 11px;
+}
+
+.hptp-toolbar-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: auto;
+	padding: 3px 9px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	background: var(--background-primary);
+	color: var(--text-muted);
+	font-size: 0.76em;
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.hptp-toolbar-button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.hptp-toolbar-icon {
+	display: inline-flex;
+	align-items: center;
+}
+
+.hptp-toolbar-icon .svg-icon {
+	width: 12px;
+	height: 12px;
+}
+
+.hptp-toolbar-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.76em;
+	color: var(--text-muted);
+	cursor: pointer;
+	user-select: none;
+}
+
+.hptp-toolbar-toggle:hover {
+	color: var(--text-normal);
+}
+
+.hptp-toolbar-toggle input[type="checkbox"] {
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	cursor: pointer;
+}
+
+/* ---------------------------------------------------------- task groups */
+
+/* One block per task group, inside "Tasks by date" and the priority board.
+ * Each group gets an accent so the same group is recognisable in both. */
+
+.hptp-taskgroup {
+	--hptp-group-color: var(--text-faint);
+}
+
+.hptp-taskgroup-g1 { --hptp-group-color: var(--color-purple, #8e4ec6); }
+.hptp-taskgroup-g2 { --hptp-group-color: var(--color-cyan, #12a594); }
+.hptp-taskgroup-g3 { --hptp-group-color: var(--color-green, #30a46c); }
+
+.hptp-taskgroup + .hptp-taskgroup {
+	margin-top: 16px;
+}
+
+.hptp-taskgroup-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px 6px 7px;
+	border-radius: var(--hptp-radius-sm);
+	background: color-mix(in srgb, var(--hptp-group-color) 9%, var(--background-primary-alt));
+	cursor: pointer;
+	user-select: none;
+}
+
+.hptp-taskgroup-header:hover {
+	background: color-mix(in srgb, var(--hptp-group-color) 15%, var(--background-primary-alt));
+}
+
+.hptp-taskgroup-header:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.hptp-taskgroup-chevron {
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
+.hptp-taskgroup-chevron .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+.hptp-taskgroup-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--hptp-group-color);
+	flex-shrink: 0;
+}
+
+.hptp-taskgroup-name {
+	font-weight: 650;
+	font-size: 0.9em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.hptp-taskgroup-count {
+	font-size: 0.7em;
+	font-weight: 600;
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+	padding: 1px 7px;
+	border-radius: 999px;
+	flex-shrink: 0;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.hptp-taskgroup-folders {
+	margin-left: auto;
+	min-width: 0;
+	font-size: 0.72em;
+	color: var(--text-faint);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.hptp-taskgroup-body {
+	margin: 9px 0 0 3px;
+	padding-left: 10px;
+	border-left: 2px solid color-mix(in srgb, var(--hptp-group-color) 35%, transparent);
+}
+
 /* --------------------------------------------------------------- groups */
 
 .hptp-group + .hptp-group {
@@ -1107,4 +1261,15 @@
 
 .hptp-section-list .setting-item {
 	padding: 9px 0;
+}
+
+/* The per-folder group pickers, indented under their "Folders" row. */
+.hptp-folder-list {
+	margin: 0 0 8px 6px;
+	padding-left: 14px;
+	border-left: 2px solid var(--background-modifier-border);
+}
+
+.hptp-folder-list .setting-item {
+	padding: 7px 0;
 }

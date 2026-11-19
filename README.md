@@ -13,14 +13,58 @@ hidden and reordered from settings:
 
 | Section | What it shows |
 | --- | --- |
-| **Tasks by date** | Overdue · Today · Tomorrow · Upcoming · No date, with inline checkboxes, priority badges and date chips |
+| **Tasks by date** | Overdue · Today · Tomorrow · Upcoming · No date, with inline checkboxes, priority badges and date chips. Sort order and completed tasks switch from the card |
 | **Priority board** | One lane per priority — drag a task between lanes to re-prioritise it in the markdown |
 | **Active tickets** | Tickets from your `Tickets/` folder with their open task counts, newest and busiest first |
 | **Recent daily notes** | The last few daily notes with a one-line preview |
 | **Stats** | Open / due / overdue / completed counts, a seven-day completion bar and a streak |
 
 Above them sits a bar with a greeting, live counts, and a one-line quick-add
-field.
+field. The two task sections can be split into [task groups](#task-groups) by
+folder.
+
+## Task groups
+
+**Tasks by date** and the **Priority board** can be split into up to three
+groups, by the top-level folder a task's note lives in:
+
+```
+Work       Tickets, Projects
+Personal   Personal, Vault root
+```
+
+Define the groups under **Settings → Task groups**: add a group, name it, then
+pick a group for each top-level folder. A group can hold several folders; a
+folder belongs to one group at most. **Vault root** stands for notes that are
+not inside any folder. Each folder row shows its open task count, so it is
+easy to see which ones matter.
+
+On the home page each group gets its own block in both sections — its own
+date buckets, and its own board of priority lanes. Click a group's header to
+fold it away.
+
+- Tasks in folders without a group are collected under **Other**, so nothing
+  goes missing. To hide a folder outright, add it to **Exclude folders**.
+- A group with nothing to show is left out until it has tasks again.
+- On the board, a task can only be dragged between the lanes of its own
+  group: a task's group follows the folder it is filed in, so dropping it on
+  another group's lane could not move it there.
+- Renaming a top-level folder keeps it in its group.
+- With no groups defined, both sections show one combined list.
+
+### Sorting and completed tasks
+
+The bar at the top of **Tasks by date** changes how the card reads without a
+trip to settings, and remembers the choice:
+
+- **Sort order** — by date (earliest or latest first), priority (highest or
+  lowest first) or name. It applies inside each date bucket; the buckets
+  themselves stay in order. Undated tasks always sort after dated ones.
+- **Show completed** — adds done and cancelled tasks to their buckets, below
+  the open ones. Counts then read `6 open · 2 closed`.
+
+The priority board keeps its own **Hide completed tasks on the board**
+setting.
 
 ## Tasks are plain markdown
 
@@ -154,11 +198,14 @@ extra prompt instructions. **Run test** confirms the CLI is reachable.
 
 **Sections** — show, hide and reorder the five blocks.
 
+**Task groups** — up to three named groups, and which group each top-level
+folder belongs to. See [Task groups](#task-groups).
+
 **Tasks** — task folder and inbox filename for new tasks; an optional heading
 to append under; which folders to scan (empty means the whole vault) and which
-to exclude; the upcoming window; whether to show completed tasks; how many
-tasks a group shows before "show all"; whether to stamp a created date; and
-whether to open the home page on startup.
+to exclude; the upcoming window; whether the board hides completed tasks; how
+many tasks a group shows before "show all"; whether to stamp a created date;
+and whether to open the home page on startup.
 
 A bare exclude name like `Archive` matches a folder of that name at **any**
 depth, so it covers `Daily Notes/Archive` and `Tickets/Archive` both. An entry
@@ -191,7 +238,7 @@ npm install
 npm run dev        # esbuild watch
 npm run build      # typecheck, then a production bundle
 npm run typecheck
-npm test           # unit suites: parser round-tripping, dates, aggregation
+npm test           # unit suites: parser round-tripping, dates, aggregation, groups
 ```
 
 The parser's guarantees are worth checking against your own vault before
@@ -221,9 +268,10 @@ src/
   claude.ts          Claude Code CLI child process
   summary.ts         summary prompt and the local fallback summary
   homeData.ts        the snapshot both the view and the summary are built from
+  groups.ts          task groups: folders to groups, tasks to group blocks
   dates.ts           local-time date helpers
   quickParse.ts      quick-add shorthand
-  ui/                card shell, task row
+  ui/                card shell, task group block, task row
   sections/          the five sections
   modals/            add task, text prompt
 ```

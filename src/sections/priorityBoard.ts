@@ -7,20 +7,31 @@
 
 import { Notice, setIcon } from "obsidian";
 import { renderCard, renderEmpty } from "../ui/card";
+import { groupDragType, renderTaskGroup } from "../ui/taskGroup";
 import { renderTaskItem } from "../ui/taskItem";
+import { bucketByPriority } from "../homeData";
 import { PRIORITY_EMOJI, PRIORITY_LABEL } from "../taskFormat";
-import { PRIORITY_ORDER, type Priority } from "../types";
+import { PRIORITY_ORDER, type Priority, type Task } from "../types";
 import type { SectionContext } from "./context";
 
 export function renderPriorityBoard(
 	parent: HTMLElement,
 	ctx: SectionContext,
 ): void {
-	const { byPriority } = ctx.data;
-	const total = PRIORITY_ORDER.reduce(
-		(sum, p) => sum + byPriority[p].length,
-		0,
-	);
+	const { groups, grouped } = ctx.data;
+
+	// With task groups defined there is one board per group, stacked.
+	const blocks = groups.map((group) => {
+		const lanes = bucketByPriority(group.tasks, {
+			showCompleted: !ctx.settings.hideCompleted,
+		});
+		const count = PRIORITY_ORDER.reduce(
+			(sum, p) => sum + lanes[p].length,
+			0,
+		);
+		return { group, lanes, count };
+	});
+	const total = blocks.reduce((sum, b) => sum + b.count, 0);
 
 	const card = renderCard(parent, ctx, {
 		title: "Priority board",
@@ -45,22 +56,54 @@ export function renderPriorityBoard(
 
 	card.body.createDiv({
 		cls: "hptp-board-hint",
-		text: "Drag a task into another lane to change its priority.",
+		text: grouped
+			? "Drag a task into another lane of its group to change its priority."
+			: "Drag a task into another lane to change its priority.",
 	});
 
-	const board = card.body.createDiv({ cls: "hptp-board" });
+	for (const block of blocks) {
+		if (block.count === 0) continue;
 
-	for (const priority of PRIORITY_ORDER) {
-		renderLane(board, ctx, priority);
+		const body = grouped
+			? renderTaskGroup(card.body, ctx, block.group, {
+					section: "board",
+					count: String(block.count),
+				})
+			: card.body;
+		if (!body) continue;
+
+		const board = body.createDiv({ cls: "hptp-board" });
+		for (const priority of PRIORITY_ORDER) {
+			renderLane(
+				board,
+				ctx,
+				block.group.id,
+				priority,
+				block.lanes[priority],
+			);
+		}
 	}
 }
 
 function renderLane(
 	board: HTMLElement,
 	ctx: SectionContext,
+	groupId: string,
 	priority: Priority,
+	tasks: Task[],
 ): void {
-	const tasks = ctx.data.byPriority[priority];
+	// A task's group follows the folder it is filed in, so a lane only takes
+	// tasks from its own group: dropping across groups could not move one.
+	const groupType = groupDragType(groupId);
+	const accepts = (ev: DragEvent): boolean => {
+		const types = ev.dataTransfer?.types;
+		return (
+			!!types &&
+			types.includes("text/hptp-task") &&
+			types.includes(groupType)
+		);
+	};
+
 	const lane = board.createDiv({
 		cls: `hptp-lane hptp-lane-${priority}`,
 	});
@@ -101,7 +144,7 @@ function renderLane(
 	}
 
 	const limit = Math.max(5, Math.floor(ctx.settings.maxPerGroup / 2));
-	const key = `group:board:${priority}`;
+	const key = `group:board:${groupId}:${priority}`;
 	const expanded = ctx.isExpanded(key);
 	const shown = expanded ? tasks : tasks.slice(0, limit);
 
@@ -128,13 +171,13 @@ function renderLane(
 	let depth = 0;
 
 	lane.addEventListener("dragover", (ev) => {
-		if (!ev.dataTransfer?.types.includes("text/hptp-task")) return;
+		if (!accepts(ev)) return;
 		ev.preventDefault();
-		ev.dataTransfer.dropEffect = "move";
+		if (ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
 	});
 
 	lane.addEventListener("dragenter", (ev) => {
-		if (!ev.dataTransfer?.types.includes("text/hptp-task")) return;
+		if (!accepts(ev)) return;
 		depth++;
 		lane.addClass("hptp-lane-dragover");
 	});
@@ -149,6 +192,7 @@ function renderLane(
 		depth = 0;
 		lane.removeClass("hptp-lane-dragover");
 
+		if (!accepts(ev)) return;
 		const id = ev.dataTransfer?.getData("text/hptp-task");
 		if (!id) return;
 

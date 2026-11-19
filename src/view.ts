@@ -112,6 +112,11 @@ export class HomeView extends ItemView {
 
 			refresh: () => void this.refresh(),
 			redraw: () => this.redraw(),
+			updateSettings: (patch) => {
+				Object.assign(this.plugin.settings, patch);
+				void this.plugin.saveSettings();
+				this.plugin.redrawViews();
+			},
 
 			openPath: (path, line, newLeaf) =>
 				this.openPath(path, line, newLeaf),

@@ -1,0 +1,76 @@
+{
+  "taskFolder": "Tasks",
+  "taskFileName": "Tasks.md",
+  "taskHeading": "",
+  "scanFolders": [],
+  "excludeFolders": [
+    "Templates",
+    ".trash",
+    "Archive",
+    "Meta"
+  ],
+  "ticketFolder": "Tickets",
+  "ticketExcludeFolders": [
+    "Archive",
+    "extra notes"
+  ],
+  "newTicketAsFolder": true,
+  "dailyNoteFolder": "Daily Notes",
+  "dailyNoteFormat": "MM-DD-YYYY",
+  "dailyNoteTemplate": "",
+  "dailyNoteCount": 7,
+  "sections": [
+    {
+      "id": "byDate",
+      "enabled": true
+    },
+    {
+      "id": "priorityBoard",
+      "enabled": true
+    },
+    {
+      "id": "tickets",
+      "enabled": true
+    },
+    {
+      "id": "dailyNotes",
+      "enabled": true
+    },
+    {
+      "id": "stats",
+      "enabled": true
+    }
+  ],
+  "taskGroups": [
+    {
+      "id": "g1",
+      "name": "Tickets & Coding Tasks",
+      "folders": [
+        "Daily Notes",
+        "Meetings",
+        "Tasks",
+        "Tickets"
+      ]
+    },
+    {
+      "id": "g2",
+      "name": "AWS Maintenance",
+      "folders": [
+        "Devops"
+      ]
+    }
+  ],
+  "upcomingDays": 7,
+  "hideCompleted": true,
+  "byDateSort": "date-asc",
+  "byDateShowCompleted": true,
+  "maxPerGroup": 25,
+  "openOnStartup": true,
+  "addCreatedDate": true,
+  "aiEnabled": true,
+  "claudePath": "claude",
+  "claudeModel": "",
+  "claudeTimeoutSeconds": 180,
+  "summaryHeading": "## Daily Summary",
+  "summaryExtraInstructions": ""
+}
